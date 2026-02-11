@@ -50,7 +50,7 @@ attach_pipes() {
   tmux list-panes -a -F "#{pane_id} #{pane_current_command}" |
     while read -r pane_id pane_cmd; do
       if [ "$pane_cmd" = "$cmd" ]; then
-        tmux pipe-pane -o -t "$pane_id" "cc-flavors ingest --raw-log '$raw_log'"
+        tmux pipe-pane -o -t "$pane_id" "cc-flavors ingest"
         printf "%s\n" "$pane_id" >>"$tmp_new"
       fi
     done

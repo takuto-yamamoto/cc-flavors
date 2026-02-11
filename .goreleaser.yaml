@@ -1,0 +1,44 @@
+project_name: cc-flavors
+
+builds:
+  - main: .
+    binary: cc-flavors
+    ldflags:
+      - '-s -w -X main.revision={{ .ShortCommit }}'
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+before:
+  hooks:
+    - go test ./...
+
+archives:
+  - format: tar.gz
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+signs:
+  - artifacts: checksum
+    cmd: cosign
+    signature: '${artifact}.sig'
+    output: true
+    args:
+      - sign-blob
+      - --yes
+      - --output-signature
+      - ${signature}
+      - ${artifact}
+
+release:
+  github:
+    owner: takuto-yamamoto
+    name: cc-flavors
