@@ -1,3 +1,5 @@
 .vscode/
 .local/
+
+dist
 cc-flavors
