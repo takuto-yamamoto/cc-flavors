@@ -29,6 +29,10 @@ type ingestConfig struct {
 	dbPath string
 }
 
+type exportConfig struct {
+	dbPath string
+}
+
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -51,6 +55,12 @@ func run(args []string, stdin io.Reader, stderr io.Writer) error {
 			return err
 		}
 		return runIngest(cfg, stdin)
+	case "export":
+		cfg, err := parseExportFlags(args[1:])
+		if err != nil {
+			return err
+		}
+		return runExport(cfg, os.Stdout)
 	default:
 		if err := printUsage(stderr); err != nil {
 			return err
@@ -60,7 +70,15 @@ func run(args []string, stdin io.Reader, stderr io.Writer) error {
 }
 
 func printUsage(w io.Writer) error {
-	_, err := fmt.Fprintln(w, "usage: cc-flavors ingest [--db <path>]")
+	usage := `usage: cc-flavors <command> [options]
+
+commands:
+  ingest  read from stdin and store counts
+  export  print aggregated counts
+
+options:
+  --db <path>  sqlite db path (default: $XDG_DATA_HOME/cc-flavors/events.sqlite)`
+	_, err := fmt.Fprintln(w, usage)
 	return err
 }
 
@@ -70,6 +88,19 @@ func parseIngestFlags(args []string) (ingestConfig, error) {
 
 	cfg := ingestConfig{}
 	fs.StringVar(&cfg.rawLog, "raw-log", "", "path to raw log (optional)")
+	fs.StringVar(&cfg.dbPath, "db", "", "path to sqlite db")
+
+	if err := fs.Parse(args); err != nil {
+		return cfg, err
+	}
+	return cfg, nil
+}
+
+func parseExportFlags(args []string) (exportConfig, error) {
+	fs := flag.NewFlagSet("export", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	cfg := exportConfig{}
 	fs.StringVar(&cfg.dbPath, "db", "", "path to sqlite db")
 
 	if err := fs.Parse(args); err != nil {
@@ -138,6 +169,58 @@ func runIngest(cfg ingestConfig, stdin io.Reader) (err error) {
 			return err
 		}
 	}
+	return nil
+}
+
+func runExport(cfg exportConfig, w io.Writer) error {
+	dbPath := cfg.dbPath
+	if dbPath == "" {
+		var err error
+		dbPath, err = defaultDBPath()
+		if err != nil {
+			return err
+		}
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	if err := ensureSchema(db); err != nil {
+		return err
+	}
+
+	rows, err := db.Query(`
+		SELECT word, SUM(count) AS total
+		FROM counts
+		GROUP BY word
+		ORDER BY total DESC, word ASC
+	`)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	for rows.Next() {
+		var word string
+		var total int
+		if err := rows.Scan(&word, &total); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "%6d  %s\n", total, word); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
