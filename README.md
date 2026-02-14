@@ -61,7 +61,7 @@ Set in `.tmux.conf` (optional):
 
 ```
 set -g @cc_flavors_cmd "claude"
-set -g @cc_flavors_scan_interval "5"
+set -g @cc_flavors_scan_interval "1"
 ```
 
 ### Summary (human readable)

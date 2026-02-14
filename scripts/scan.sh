@@ -8,14 +8,11 @@ read_tmux_option() {
 init_paths() {
   data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
   data_dir="$data_home/cc-flavors"
-  panes_file="$data_dir/panes"
-  raw_log="$data_dir/raw.log"
   pid_file="$data_dir/scan.pid"
 }
 
 ensure_data_dir() {
   mkdir -p "$data_dir"
-  touch "$panes_file" "$raw_log"
 }
 
 acquire_lock() {
@@ -33,7 +30,7 @@ acquire_lock() {
 get_scan_interval() {
   scan_interval="$(read_tmux_option @cc_flavors_scan_interval)"
   if [ -z "$scan_interval" ]; then
-    scan_interval=5
+    scan_interval=1
   fi
 }
 
@@ -44,38 +41,53 @@ get_cmd() {
   fi
 }
 
-attach_pipes() {
-  tmp_new="$(mktemp)"
-  # List all panes: id command pipe
-  tmux list-panes -a -F "#{pane_id} #{pane_current_command}" |
-    while read -r pane_id pane_cmd; do
-      if [ "$pane_cmd" = "$cmd" ]; then
-        tmux pipe-pane -o -t "$pane_id" "cc-flavors ingest"
-        printf "%s\n" "$pane_id" >>"$tmp_new"
-      fi
-    done
-}
-
-detach_missing_panes() {
-  if [ -s "$panes_file" ]; then
-    while read -r pane_id; do
-      if ! grep -Fqx "$pane_id" "$tmp_new"; then
-        tmux pipe-pane -t "$pane_id" >/dev/null 2>&1 || true
-      fi
-    done <"$panes_file"
+resolve_cc_flavors() {
+  cc_flavors="$(command -v cc-flavors 2>/dev/null || true)"
+  if [ -z "$cc_flavors" ] && [ -n "${HOME:-}" ]; then
+    if [ -x "$HOME/go/bin/cc-flavors" ]; then
+      cc_flavors="$HOME/go/bin/cc-flavors"
+    elif [ -x "$HOME/.local/go/bin/cc-flavors" ]; then
+      cc_flavors="$HOME/.local/go/bin/cc-flavors"
+    fi
   fi
 }
 
-commit_panes() {
-  sort -u "$tmp_new" >"$panes_file"
-  rm -f "$tmp_new"
+capture_flavor() {
+  pane_id="$1"
+  pane_key="${pane_id#%}"
+  last_file="$data_dir/last_${pane_key}"
+
+  text="$(tmux capture-pane -p -t "$pane_id" -S -100)"
+  match="$(printf "%s\n" "$text" | tr '\r' '\n' | grep -Eo '[A-Z][A-Za-z]*ing…' | tail -n 1)"
+  if [ -z "$match" ]; then
+    return 0
+  fi
+
+  last=""
+  if [ -f "$last_file" ]; then
+    last="$(cat "$last_file" 2>/dev/null || true)"
+  fi
+
+  if [ "$match" != "$last" ]; then
+    printf "%s\n" "$match" | "$cc_flavors" ingest
+    printf "%s" "$match" >"$last_file"
+  fi
 }
 
 scan_once() {
   get_cmd
-  attach_pipes
-  detach_missing_panes
-  commit_panes
+  resolve_cc_flavors
+  if [ -z "${cc_flavors:-}" ]; then
+    tmux display-message "cc-flavors: command not found"
+    return 0
+  fi
+
+  tmux list-panes -a -F "#{pane_id} #{pane_current_command}" |
+    while read -r pane_id pane_cmd; do
+      if [ "$pane_cmd" = "$cmd" ]; then
+        capture_flavor "$pane_id"
+      fi
+    done
 }
 
 main() {
