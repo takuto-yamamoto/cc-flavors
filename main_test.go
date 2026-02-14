@@ -48,11 +48,39 @@ func runCLI(t *testing.T, input string, args ...string) (string, string) {
 	return stdout.String(), stderr.String()
 }
 
+func runCLIExpectError(t *testing.T, input string, args ...string) (string, string) {
+	t.Helper()
+
+	cmd := exec.Command(testBinary, args...)
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err == nil {
+		t.Fatalf("expected command failure, got success")
+	}
+	return stdout.String(), stderr.String()
+}
+
 func TestSummaryEmpty(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "events.sqlite")
 
 	stdout, _ := runCLI(t, "", "summary", "--db", dbPath)
+	if stdout != "No flavor texts found yet.\n" {
+		t.Fatalf("unexpected output: %q", stdout)
+	}
+}
+
+func TestDefaultRunsSummary(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "events.sqlite")
+
+	stdout, _ := runCLI(t, "", "--db", dbPath)
 	if stdout != "No flavor texts found yet.\n" {
 		t.Fatalf("unexpected output: %q", stdout)
 	}
@@ -79,5 +107,46 @@ func TestIngestAndSummary(t *testing.T) {
 	}, "\n")
 	if stdout != expected {
 		t.Fatalf("unexpected output:\n%s", stdout)
+	}
+}
+
+func TestSummarySinceFilters(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "events.sqlite")
+
+	input := strings.Join([]string{
+		"Thinking...",
+		"Thinking...",
+	}, "\n")
+	_, _ = runCLI(t, input, "ingest", "--db", dbPath)
+
+	stdout, _ := runCLI(t, "", "summary", "--db", dbPath, "--since", "2099-01-01T00:00:00Z")
+	if stdout != "No flavor texts found yet.\n" {
+		t.Fatalf("unexpected output: %q", stdout)
+	}
+}
+
+func TestSummarySinceValidation(t *testing.T) {
+	_, stderr := runCLIExpectError(t, "", "summary", "--since", "not-a-time")
+	if !strings.Contains(stderr, "invalid --since") {
+		t.Fatalf("expected since validation error, got: %s", stderr)
+	}
+}
+
+func TestClearConfirmation(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "events.sqlite")
+
+	_, _ = runCLI(t, "Thinking...\n", "ingest", "--db", dbPath)
+	_, _ = runCLI(t, "n\n", "clear", "--db", dbPath)
+	stdout, _ := runCLI(t, "", "summary", "--db", dbPath)
+	if !strings.Contains(stdout, "Thinking") {
+		t.Fatalf("expected data to remain, got: %s", stdout)
+	}
+
+	_, _ = runCLI(t, "", "clear", "--db", dbPath, "--yes")
+	stdout, _ = runCLI(t, "", "summary", "--db", dbPath)
+	if stdout != "No flavor texts found yet.\n" {
+		t.Fatalf("expected empty after clear, got: %s", stdout)
 	}
 }

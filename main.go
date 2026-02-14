@@ -61,10 +61,8 @@ func run(args []string, stdin io.Reader, stderr io.Writer) error {
 	switch args[0] {
 	case "-h", "--help", "help":
 		return printUsage(stderr)
-	case "--version", "-V", "version":
+	case "--version", "-V":
 		return printVersion(os.Stdout)
-	case "db-path":
-		return runDBPath(os.Stdout)
 	case "clear":
 		cfg, err := parseClearFlags(args[1:])
 		if err != nil {
@@ -92,31 +90,25 @@ func run(args []string, stdin io.Reader, stderr io.Writer) error {
 }
 
 func printUsage(w io.Writer) error {
-	usage := `usage: cc-flavors [command] [options]
+	usage := `Usage: cc-flavors [options] [command]
 
-commands:
-  ingest  read from stdin and store counts
-  summary  print aggregated counts
-  version  print version
-  clear  delete all stored counts
-  db-path  print database path
+cc-flavors - collects Claude Code flavor texts.
 
-options:
-  -h, --help  show help
-  -V, --version  print version
+Commands:
+  ingest         Read from stdin and store counts
+  summary        Print aggregated counts (default)
+  clear          Delete all stored counts
 
-  --db <path>  sqlite db path (default: $XDG_DATA_HOME/cc-flavors/events.sqlite)
-  --since <time>  filter counts since time (RFC3339)`
+Options:
+  -h, --help       Show help
+  -V, --version    Print version
+  --db <path>      SQLite DB path (default: $XDG_DATA_HOME/cc-flavors/events.sqlite)
+  --since <time>   Filter counts since time (RFC3339)
+
+RFC3339 examples:
+  2025-02-14T12:34:56Z
+  2025-02-14`
 	_, err := fmt.Fprintln(w, usage)
-	return err
-}
-
-func runDBPath(w io.Writer) error {
-	path, err := defaultDBPath()
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintln(w, path)
 	return err
 }
 
