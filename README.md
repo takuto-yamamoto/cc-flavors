@@ -1,7 +1,7 @@
 # cc-flavors
 
-![CI](https://github.com/takuto-yamamoto/cc-flavors/actions/workflows/ci.yml/badge.svg)
-![License](https://img.shields.io/github/license/takuto-yamamoto/cc-flavors)
+![CI](https://github.com/takymt/cc-flavors/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/github/license/takymt/cc-flavors)
 
 ![Demo Screenshot](docs/demo.png)
 
@@ -14,7 +14,7 @@
 1. Install the binary
 
 ```bash
-go install github.com/takuto-yamamoto/cc-flavors@latest
+go install github.com/takymt/cc-flavors@latest
 ```
 
 2. Install the tmux plugin (TPM)
@@ -22,7 +22,7 @@ go install github.com/takuto-yamamoto/cc-flavors@latest
 Add to `.tmux.conf`:
 
 ```conf
-set -g @plugin 'takuto-yamamoto/cc-flavors'
+set -g @plugin 'takymt/cc-flavors'
 run '~/.tmux/plugins/tpm/tpm'
 ```
 
@@ -43,7 +43,7 @@ Download the release archive for your platform, then put `cc-flavors` on `PATH`.
 #### tmux plugin (manual)
 
 ```bash
-git clone https://github.com/takuto-yamamoto/cc-flavors.git ~/.tmux/plugins/cc-flavors
+git clone https://github.com/takymt/cc-flavors.git ~/.tmux/plugins/cc-flavors
 ```
 
 Add to `.tmux.conf`:
@@ -88,7 +88,7 @@ cc-flavors clear
 
 ## Author
 
-@takuto-yamamoto (a.k.a. tarte)
+@takymt (a.k.a. tarte)
 
 ## License
 

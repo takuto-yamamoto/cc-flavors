@@ -21,6 +21,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Go mod tidy check
+        run: |
+          go mod tidy
+          git diff --exit-code
+
       - name: Format
         run: |
           test -z "$(gofmt -l .)"

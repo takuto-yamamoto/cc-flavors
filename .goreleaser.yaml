@@ -45,5 +45,5 @@ sboms:
 
 release:
   github:
-    owner: takuto-yamamoto
+    owner: takymt
     name: cc-flavors
