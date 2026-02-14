@@ -1,33 +1,37 @@
 # cc-flavors
 
-A scrapbook of Claude Code flavor texts.
-
-## What it does
-
-`cc-flavors` collects "flavor texts" shown by Claude Code (e.g. `Moonwalking...`).
+`cc-flavors` collects "flavor texts" shown by Claude Code (e.g. `Moonwalking…`).
 
 It ships as a single Go binary and a tiny tmux hook.
 
+[[Add demo here]]
+
 ## Install
 
-### Quick start (recommended)
+### Quick start
 
-1. Install the binary:
+1. Install the binary
 
-```
+```bash
 go install github.com/takuto-yamamoto/cc-flavors@latest
 ```
 
-2. Install the tmux plugin (TPM):
+2. Install the tmux plugin (TPM)
 
 Add to `.tmux.conf`:
 
-```
+```conf
 set -g @plugin 'takuto-yamamoto/cc-flavors'
 run '~/.tmux/plugins/tpm/tpm'
 ```
 
 Reload tmux, then press `prefix + I` to install.
+
+3. Start Claude Code
+
+Then use Claude Code as usual.
+
+If you wrap the `claude` command, set `@cc_flavors_cmd` in **Options** below.
 
 ### Alternative install
 
@@ -43,39 +47,48 @@ git clone https://github.com/takuto-yamamoto/cc-flavors.git ~/.tmux/plugins/cc-f
 
 Add to `.tmux.conf`:
 
-```
+```conf
 run '~/.tmux/plugins/cc-flavors/cc-flavors.tmux'
 ```
 
 ## Usage
 
-### Requirements
+See `cc-flavors --help` for the full command list and options.
 
-- `cc-flavors` binary must be on `PATH`
-- `tmux`
-- `claude` command (or set `@cc_flavors_cmd`)
+### tmux Options
 
-### Options
+Set in `.tmux.conf`:
 
-Set in `.tmux.conf` (optional):
-
-```
+```conf
+# The command name to watch in tmux panes (default: `claude`).
 set -g @cc_flavors_cmd "claude"
+
+# Scan interval in seconds (default: `1`).
 set -g @cc_flavors_scan_interval "1"
 ```
 
-### Summary (human readable)
+### Examples
 
-```
-cc-flavors summary
+```bash
+# Show summary
+cc-flavors
+
+# Filter by date
+cc-flavors --since 2025-02-14
+
+# Clear all counts (with confirmation)
+cc-flavors clear
 ```
 
-Sample output:
+## Limitations
 
-```
-Count  Flavor
------  ------
-   12  Moonwalking
-    7  Thinking
-    3  Refactoring
-```
+- `cc-flavors` watches panes running the configured command (default: `claude`) and collects any on-screen lines that match the flavor-text pattern.
+- If you want a "pure" collection, avoid customizing or disabling Claude Code's flavor texts.
+
+## Author
+
+@takuto-yamamoto (a.k.a. tarte)
+
+## License
+
+MIT

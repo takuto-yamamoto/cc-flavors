@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -275,6 +276,11 @@ func runIngest(cfg ingestConfig, stdin io.Reader) (err error) {
 	return nil
 }
 
+type flavorCount struct {
+	word  string
+	total int
+}
+
 func runSummary(cfg exportConfig, w io.Writer) error {
 	dbPath := cfg.dbPath
 	if dbPath == "" {
@@ -297,51 +303,110 @@ func runSummary(cfg exportConfig, w io.Writer) error {
 		return err
 	}
 
+	counts, err := fetchSummaryCounts(db, cfg.since)
+	if err != nil {
+		return err
+	}
+	if len(counts) == 0 {
+		_, err := fmt.Fprintln(w, "No flavor texts found yet.")
+		return err
+	}
+
+	if err := writeSummaryTable(w, counts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func fetchSummaryCounts(db *sql.DB, since string) ([]flavorCount, error) {
 	query := `
 		SELECT word, SUM(count) AS total
 		FROM counts
 	`
 	args := []any{}
-	if cfg.since != "" {
+	if since != "" {
 		query += "\n\t\tWHERE created_at >= ?"
-		args = append(args, cfg.since)
+		args = append(args, since)
 	}
 	query += "\n\t\tGROUP BY word"
 	query += "\n\t\tORDER BY total DESC, word ASC\n\t"
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() {
 		_ = rows.Close()
 	}()
 
-	hasRows := false
+	counts := []flavorCount{}
 	for rows.Next() {
 		var word string
 		var total int
 		if err := rows.Scan(&word, &total); err != nil {
-			return err
+			return nil, err
 		}
-		if !hasRows {
-			if _, err := fmt.Fprintln(w, "Count  Flavor"); err != nil {
-				return err
-			}
-			if _, err := fmt.Fprintln(w, "-----  ------"); err != nil {
-				return err
-			}
-			hasRows = true
-		}
-		if _, err := fmt.Fprintf(w, "%5d  %s\n", total, word); err != nil {
-			return err
-		}
-	}
-	if !hasRows {
-		_, err := fmt.Fprintln(w, "No flavor texts found yet.")
-		return err
+		counts = append(counts, flavorCount{word: word, total: total})
 	}
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return counts, nil
+}
+
+func writeSummaryTable(w io.Writer, counts []flavorCount) error {
+	const title = "Your Flavors"
+	countHeader := "Count"
+	flavorHeader := "Flavor"
+	const cellPadding = 2
+	const columnSeps = 3
+	const titlePadding = 4
+	const borderCorners = 2
+
+	maxCount := len(countHeader)
+	maxFlavor := len(flavorHeader)
+	for _, item := range counts {
+		countWidth := len(strconv.Itoa(item.total))
+		if countWidth > maxCount {
+			maxCount = countWidth
+		}
+		if len(item.word) > maxFlavor {
+			maxFlavor = len(item.word)
+		}
+	}
+
+	leftWidth := maxCount + cellPadding
+	rightWidth := maxFlavor + cellPadding
+	totalWidth := leftWidth + rightWidth + columnSeps
+	if len(title)+titlePadding > totalWidth {
+		rightWidth += (len(title) + titlePadding) - totalWidth
+		totalWidth = leftWidth + rightWidth + columnSeps
+	}
+
+	if _, err := fmt.Fprintf(w, "╭%s╮\n", strings.Repeat("─", totalWidth-borderCorners)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "│ %-*s │\n", totalWidth-titlePadding, title); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "├%s┬%s┤\n", strings.Repeat("─", leftWidth), strings.Repeat("─", rightWidth)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "│ %-*s │ %-*s │\n", maxCount, countHeader, rightWidth-2, flavorHeader); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "├%s┼%s┤\n", strings.Repeat("─", leftWidth), strings.Repeat("─", rightWidth)); err != nil {
+		return err
+	}
+
+	for _, item := range counts {
+		if _, err := fmt.Fprintf(w, "│ %*d │ %-*s │\n", maxCount, item.total, rightWidth-2, item.word); err != nil {
+			return err
+		}
+	}
+
+	if _, err := fmt.Fprintf(w, "╰%s┴%s╯\n", strings.Repeat("─", leftWidth), strings.Repeat("─", rightWidth)); err != nil {
 		return err
 	}
 

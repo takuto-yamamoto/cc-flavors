@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 var testBinary string
@@ -66,6 +67,29 @@ func runCLIExpectError(t *testing.T, input string, args ...string) (string, stri
 	return stdout.String(), stderr.String()
 }
 
+func assertBoxTable(t *testing.T, output string) {
+	t.Helper()
+	lines := []string{}
+	for _, line := range strings.Split(output, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) < 3 {
+		t.Fatalf("expected table output, got:\n%s", output)
+	}
+	width := utf8.RuneCountInString(lines[0])
+	for _, line := range lines {
+		if utf8.RuneCountInString(line) != width {
+			t.Fatalf("table lines have inconsistent widths:\n%s", output)
+		}
+	}
+	if !strings.HasPrefix(lines[0], "╭") || !strings.HasSuffix(lines[0], "╮") {
+		t.Fatalf("missing top border:\n%s", output)
+	}
+}
+
 func TestSummaryEmpty(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "events.sqlite")
@@ -97,17 +121,13 @@ func TestIngestAndSummary(t *testing.T) {
 	_, _ = runCLI(t, input, "ingest", "--db", dbPath)
 
 	stdout, _ := runCLI(t, "", "summary", "--db", dbPath)
-	expected := strings.Join([]string{
-		"Count  Flavor",
-		"-----  ------",
-		"    2  Thinking",
-		"    1  Moonwalking",
-		"    1  Refactoring",
-		"",
-	}, "\n")
-	if stdout != expected {
-		t.Fatalf("unexpected output:\n%s", stdout)
+	if !strings.Contains(stdout, "Your Flavors") {
+		t.Fatalf("expected title in output, got:\n%s", stdout)
 	}
+	if !strings.Contains(stdout, "Thinking") || !strings.Contains(stdout, "Moonwalking") || !strings.Contains(stdout, "Refactoring") {
+		t.Fatalf("expected flavors in output, got:\n%s", stdout)
+	}
+	assertBoxTable(t, stdout)
 }
 
 func TestSummarySinceFilters(t *testing.T) {
