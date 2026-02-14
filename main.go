@@ -32,6 +32,7 @@ type ingestConfig struct {
 
 type exportConfig struct {
 	dbPath string
+	since  string
 }
 
 func main() {
@@ -44,6 +45,13 @@ func main() {
 func run(args []string, stdin io.Reader, stderr io.Writer) error {
 	if len(args) == 0 {
 		cfg, err := parseSummaryFlags(nil)
+		if err != nil {
+			return err
+		}
+		return runSummary(cfg, os.Stdout)
+	}
+	if strings.HasPrefix(args[0], "-") {
+		cfg, err := parseSummaryFlags(args)
 		if err != nil {
 			return err
 		}
@@ -97,7 +105,8 @@ options:
   -h, --help  show help
   -V, --version  print version
 
-  --db <path>  sqlite db path (default: $XDG_DATA_HOME/cc-flavors/events.sqlite)`
+  --db <path>  sqlite db path (default: $XDG_DATA_HOME/cc-flavors/events.sqlite)
+  --since <time>  filter counts since time (RFC3339)`
 	_, err := fmt.Fprintln(w, usage)
 	return err
 }
@@ -141,7 +150,9 @@ func runClear(cfg clearConfig, stdin io.Reader, stderr io.Writer) error {
 	}
 
 	if !cfg.yes {
-		fmt.Fprintf(stderr, "Delete all stored counts at %s? [y/N]: ", dbPath)
+		if _, err := fmt.Fprintf(stderr, "Delete all stored counts at %s? [y/N]: ", dbPath); err != nil {
+			return err
+		}
 		reader := bufio.NewReader(stdin)
 		line, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
@@ -196,9 +207,15 @@ func parseSummaryFlags(args []string) (exportConfig, error) {
 
 	cfg := exportConfig{}
 	fs.StringVar(&cfg.dbPath, "db", "", "path to sqlite db")
+	fs.StringVar(&cfg.since, "since", "", "filter counts since time (RFC3339)")
 
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
+	}
+	if cfg.since != "" {
+		if _, err := time.Parse(time.RFC3339, cfg.since); err != nil {
+			return cfg, fmt.Errorf("invalid --since (use RFC3339): %w", err)
+		}
 	}
 	return cfg, nil
 }
@@ -288,12 +305,19 @@ func runSummary(cfg exportConfig, w io.Writer) error {
 		return err
 	}
 
-	rows, err := db.Query(`
+	query := `
 		SELECT word, SUM(count) AS total
 		FROM counts
-		GROUP BY word
-		ORDER BY total DESC, word ASC
-	`)
+	`
+	args := []any{}
+	if cfg.since != "" {
+		query += "\n\t\tWHERE created_at >= ?"
+		args = append(args, cfg.since)
+	}
+	query += "\n\t\tGROUP BY word"
+	query += "\n\t\tORDER BY total DESC, word ASC\n\t"
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return err
 	}
