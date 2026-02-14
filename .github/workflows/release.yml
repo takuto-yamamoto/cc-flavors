@@ -26,6 +26,9 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
+      - name: Install syft
+        uses: anchore/syft-action@v0
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

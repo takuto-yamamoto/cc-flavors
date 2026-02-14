@@ -1,12 +1,10 @@
 [tools]
 go = "1.26.0"
-goreleaser = "2.13.3"
-cosign = "3.0.4"
 golangci-lint = "2.8.0"
 lefthook = "2.0.4"
 
 [tasks.build]
-run = "goreleaser build --single-target --snapshot --output cc-flavors --clean"
+run = "go build -o cc-flavors ."
 
 [tasks.test]
 run = "go test ./..."

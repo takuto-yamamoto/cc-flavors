@@ -32,3 +32,9 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      - name: GoReleaser build
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: v2.13.3
+          args: build --snapshot --clean
