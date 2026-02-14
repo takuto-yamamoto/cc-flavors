@@ -55,6 +55,8 @@ func run(args []string, stdin io.Reader, stderr io.Writer) error {
 		return printUsage(stderr)
 	case "--version", "-V", "version":
 		return printVersion(os.Stdout)
+	case "db-path":
+		return runDBPath(os.Stdout)
 	case "clear":
 		cfg, err := parseClearFlags(args[1:])
 		if err != nil {
@@ -89,6 +91,7 @@ commands:
   summary  print aggregated counts
   version  print version
   clear  delete all stored counts
+  db-path  print database path
 
 options:
   -h, --help  show help
@@ -96,6 +99,15 @@ options:
 
   --db <path>  sqlite db path (default: $XDG_DATA_HOME/cc-flavors/events.sqlite)`
 	_, err := fmt.Fprintln(w, usage)
+	return err
+}
+
+func runDBPath(w io.Writer) error {
+	path, err := defaultDBPath()
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(w, path)
 	return err
 }
 
