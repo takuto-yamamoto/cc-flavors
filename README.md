@@ -50,16 +50,18 @@ set -g @cc_flavors_cmd "claude"
 set -g @cc_flavors_scan_interval "5"
 ```
 
-### Export (human readable)
+### Summary (human readable)
 
 ```
-cc-flavors export
+cc-flavors summary
 ```
 
 Sample output:
 
 ```
-    12  Moonwalking
-     7  Thinking
-     3  Refactoring
+Count  Flavor
+-----  ------
+   12  Moonwalking
+    7  Thinking
+    3  Refactoring
 ```

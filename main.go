@@ -55,12 +55,12 @@ func run(args []string, stdin io.Reader, stderr io.Writer) error {
 			return err
 		}
 		return runIngest(cfg, stdin)
-	case "export":
-		cfg, err := parseExportFlags(args[1:])
+	case "summary":
+		cfg, err := parseSummaryFlags(args[1:])
 		if err != nil {
 			return err
 		}
-		return runExport(cfg, os.Stdout)
+		return runSummary(cfg, os.Stdout)
 	default:
 		if err := printUsage(stderr); err != nil {
 			return err
@@ -74,7 +74,7 @@ func printUsage(w io.Writer) error {
 
 commands:
   ingest  read from stdin and store counts
-  export  print aggregated counts
+  summary  print aggregated counts
 
 options:
   --db <path>  sqlite db path (default: $XDG_DATA_HOME/cc-flavors/events.sqlite)`
@@ -96,8 +96,8 @@ func parseIngestFlags(args []string) (ingestConfig, error) {
 	return cfg, nil
 }
 
-func parseExportFlags(args []string) (exportConfig, error) {
-	fs := flag.NewFlagSet("export", flag.ContinueOnError)
+func parseSummaryFlags(args []string) (exportConfig, error) {
+	fs := flag.NewFlagSet("summary", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
 	cfg := exportConfig{}
@@ -172,7 +172,7 @@ func runIngest(cfg ingestConfig, stdin io.Reader) (err error) {
 	return nil
 }
 
-func runExport(cfg exportConfig, w io.Writer) error {
+func runSummary(cfg exportConfig, w io.Writer) error {
 	dbPath := cfg.dbPath
 	if dbPath == "" {
 		var err error
@@ -207,15 +207,29 @@ func runExport(cfg exportConfig, w io.Writer) error {
 		_ = rows.Close()
 	}()
 
+	hasRows := false
 	for rows.Next() {
 		var word string
 		var total int
 		if err := rows.Scan(&word, &total); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(w, "%6d  %s\n", total, word); err != nil {
+		if !hasRows {
+			if _, err := fmt.Fprintln(w, "Count  Flavor"); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintln(w, "-----  ------"); err != nil {
+				return err
+			}
+			hasRows = true
+		}
+		if _, err := fmt.Fprintf(w, "%5d  %s\n", total, word); err != nil {
 			return err
 		}
+	}
+	if !hasRows {
+		_, err := fmt.Fprintln(w, "No flavor texts found yet.")
+		return err
 	}
 	if err := rows.Err(); err != nil {
 		return err
